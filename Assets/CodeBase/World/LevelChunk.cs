@@ -4,15 +4,27 @@ namespace EventBus
 {
     public class LevelChunk : MonoBehaviour
     {
-        public void PlaceAt(float zPosition)
+        [SerializeField] private GameObject _chunkObject;
+        [SerializeField] private EnemySpawner _enemySpawner;
+
+        public void Init(Player player)
+        {
+            _enemySpawner?.Init(player);
+        }
+
+        public void PlaceAt(float zPosition, int difficulty = 0)
         {
             transform.position = new Vector3(0f, 0f, zPosition);
-            gameObject.SetActive(true);
+            _chunkObject.SetActive(true);
+            _enemySpawner?.Spawn(difficulty);
         }
 
         public void Deactivate()
         {
-            gameObject.SetActive(false);
+            _chunkObject.SetActive(false);
+            _enemySpawner?.DespawnAll();
         }
+
+        public bool IsActive => _chunkObject.activeSelf;
     }
 }

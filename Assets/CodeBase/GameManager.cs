@@ -38,6 +38,9 @@ namespace EventBus
                 case ButtonEvent.StartGame:
                     SetState(GameState.Playing);
                     break;
+                case ButtonEvent.RestartGame:
+                    SetState(GameState.Playing);
+                    break;
             }
         }
 

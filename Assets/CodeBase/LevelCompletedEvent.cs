@@ -4,9 +4,10 @@ namespace EventBus
 {
     public class LevelCompletedEvent : EventType
     {
-        public LevelCompletedEvent()
+        public bool Success { get; }
+        public LevelCompletedEvent(bool t)
         {
-            
+            Success = t;
         }
     }
 }

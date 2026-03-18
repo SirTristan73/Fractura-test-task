@@ -10,17 +10,24 @@ namespace EventBus
         [SerializeField] private float _chunkLength = 75f;
 
         [Header("References")]
-        [SerializeField] private Transform _vehicle;
+        [SerializeField] private Player _vehicle;
 
         [Header("Settings")]
         [SerializeField] private float _moveSpeed = 10f;
+        [SerializeField] private float _maxMoveSpeed = 30f;
+        [SerializeField] private float _speedIncreaseRate = 2f;
         [SerializeField] private float _levelLength = 300f;
 
         private float _distanceTravelled;
+        private float _currentSpeed;
+        private int _chunksSpawned;
         private LevelState _currentState = LevelState.Idle;
 
-        private void Awake()
+        public float Progress => Mathf.Clamp01(_distanceTravelled / _levelLength);
+
+        private void Start()
         {
+            InitChunks();
             PlaceChunks();
         }
 
@@ -43,6 +50,9 @@ namespace EventBus
                 case ButtonEvent.StartGame:
                     InitLevel();
                     break;
+                case ButtonEvent.RestartGame:
+                    InitLevel();
+                    break;
             }
         }
 
@@ -55,49 +65,64 @@ namespace EventBus
         {
             if (_currentState != LevelState.Playing) return;
 
+            IncreaseSpeed();
             MoveChunks();
             CheckStartChunk();
             CheckChunkRecycle();
             CheckLevelComplete();
         }
 
+        private void InitChunks()
+        {
+            _startChunk.Init(_vehicle);
+            foreach (var chunk in _chunks)
+                chunk.Init(_vehicle);
+        }
+
         private void InitLevel()
         {
             _distanceTravelled = 0f;
+            _currentSpeed = _moveSpeed;
+            _chunksSpawned = 0;
             PlaceChunks();
             SetState(LevelState.Playing);
         }
 
         private void PlaceChunks()
         {
-            _startChunk.PlaceAt(-_chunkLength);
+            _startChunk.PlaceAt(0f, 0);
 
-            float nextZ = 0f;
+            float nextZ = _chunkLength;
             foreach (var chunk in _chunks)
             {
-                chunk.PlaceAt(nextZ);
+                chunk.PlaceAt(nextZ, ++_chunksSpawned);
                 nextZ += _chunkLength;
             }
         }
 
+        private void IncreaseSpeed()
+        {
+            _currentSpeed = Mathf.Min(_currentSpeed + _speedIncreaseRate * Time.deltaTime, _maxMoveSpeed);
+        }
+
         private void MoveChunks()
         {
-            float delta = _moveSpeed * Time.deltaTime;
+            float delta = _currentSpeed * Time.deltaTime;
             _distanceTravelled += delta;
 
-            if (_startChunk.gameObject.activeSelf)
+            if (_startChunk.IsActive)
                 _startChunk.transform.position += Vector3.back * delta;
 
             foreach (var chunk in _chunks)
             {
-                if (!chunk.gameObject.activeSelf) continue;
+                if (!chunk.IsActive) continue;
                 chunk.transform.position += Vector3.back * delta;
             }
         }
 
         private void CheckStartChunk()
         {
-            if (!_startChunk.gameObject.activeSelf) return;
+            if (!_startChunk.IsActive) return;
 
             if (_startChunk.transform.position.z + _chunkLength < 0f)
                 _startChunk.Deactivate();
@@ -107,7 +132,7 @@ namespace EventBus
         {
             foreach (var chunk in _chunks)
             {
-                if (!chunk.gameObject.activeSelf) continue;
+                if (!chunk.IsActive) continue;
 
                 if (chunk.transform.position.z + _chunkLength < 0f)
                 {
@@ -125,12 +150,12 @@ namespace EventBus
 
             foreach (var c in _chunks)
             {
-                if (!c.gameObject.activeSelf) continue;
+                if (!c.IsActive) continue;
                 if (c.transform.position.z > furthestZ)
                     furthestZ = c.transform.position.z;
             }
 
-            chunk.PlaceAt(furthestZ + _chunkLength);
+            chunk.PlaceAt(furthestZ + _chunkLength, ++_chunksSpawned);
         }
 
         private void CheckLevelComplete()
@@ -147,10 +172,10 @@ namespace EventBus
             switch (newState)
             {
                 case LevelState.Completed:
-                    EventBus.Trigger(new LevelCompletedEvent());
+                    EventBus.Trigger(new LevelCompletedEvent(true));
                     break;
                 case LevelState.Failed:
-                    
+                    EventBus.Trigger(new LevelCompletedEvent(false));
                     break;
             }
         }
