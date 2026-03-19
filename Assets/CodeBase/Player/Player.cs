@@ -86,6 +86,7 @@ namespace EventBus
 
         public void TakeDamage(float damage)
         {
+            if (!_isPlaying) return;
             _health -= damage;
             if (_health <= 0f)
                 EventBus.Trigger(new VehicleDestroyedEvent());

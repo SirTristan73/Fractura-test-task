@@ -5,8 +5,9 @@ namespace EventBus
     public class UIManager : MonoBehaviour
     {
         public UIState CurrentUIState { get; private set; } = UIState.StartScreen;
-        
+
         [SerializeField] private GameObject _startScreen;
+        [SerializeField] private GameObject _ingameScreen;
         [SerializeField] private GameObject _winScreen;
         [SerializeField] private GameObject _loseScreen;
 
@@ -37,14 +38,14 @@ namespace EventBus
             }
         }
 
-        private void OnVehicleDestroyed(VehicleDestroyedEvent e) 
-        { 
+        private void OnVehicleDestroyed(VehicleDestroyedEvent e)
+        {
             SetState(UIState.LostScreen);
         }
 
-        private void OnLevelCompleted(LevelCompletedEvent e)     
+        private void OnLevelCompleted(LevelCompletedEvent e)
         {
-            SetState(UIState.WinScreen);
+            SetState(e.Success ? UIState.WinScreen : UIState.LostScreen);
         }
 
         private void SetState(UIState state)
@@ -53,6 +54,7 @@ namespace EventBus
             CurrentUIState = state;
 
             _startScreen.SetActive(state == UIState.StartScreen);
+            _ingameScreen.SetActive(state == UIState.Ingame);
             _winScreen.SetActive(state == UIState.WinScreen);
             _loseScreen.SetActive(state == UIState.LostScreen);
         }

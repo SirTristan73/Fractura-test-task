@@ -24,20 +24,32 @@ namespace EventBus
         private float _attackTimer;
         private float _knockbackTimer;
         private Vector3 _knockbackDir;
+        private bool _isPlaying;
 
         private static readonly int AnimState = Animator.StringToHash("State");
 
         private void OnEnable()
         {
+            EventBus.SubscribeToEvent<GameStateChangedEvent>(OnGameStateChanged);
             EventBus.SubscribeToEvent<LevelCompletedEvent>(OnLevelEnded);
         }
 
         private void OnDisable()
         {
+            EventBus.UnsubscribeFromEvent<GameStateChangedEvent>(OnGameStateChanged);
             EventBus.UnsubscribeFromEvent<LevelCompletedEvent>(OnLevelEnded);
         }
 
-        private void OnLevelEnded(LevelCompletedEvent e) => SetState(EnemyState.Idle);
+        private void OnGameStateChanged(GameStateChangedEvent e)
+        {
+            _isPlaying = e.Data == GameState.Playing;
+        }
+
+        private void OnLevelEnded(LevelCompletedEvent e)
+        {
+            _isPlaying = false;
+            SetState(EnemyState.Idle);
+        }
 
         public void Init(Player player)
         {
@@ -45,6 +57,7 @@ namespace EventBus
             _vehicleTransform = player.transform;
             _health = _maxHealth;
             _knockbackTimer = 0f;
+            _isPlaying = true;
             SetState(EnemyState.Idle);
         }
 
@@ -62,6 +75,7 @@ namespace EventBus
 
         private void Update()
         {
+            if (!_isPlaying) return;
             if (_state == EnemyState.Dead) return;
 
             _attackTimer -= Time.deltaTime;

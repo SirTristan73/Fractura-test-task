@@ -5,20 +5,19 @@ namespace EventBus
     public class TurretController : MonoBehaviour
     {
         [Header("Settings")]
-        [SerializeField] private float _detectAngle = 40f;      
-        [SerializeField] private float _loseAngle = 55f;        
+        [SerializeField] private float _detectAngle = 40f;
+        [SerializeField] private float _loseAngle = 55f;
         [SerializeField] private float _fireRate = 0.5f;
         [SerializeField] private float _bulletDamage = 25f;
         [SerializeField] private float _rotationSpeed = 10f;
-        [SerializeField] private float _detectionRange = 25f;   
+        [SerializeField] private float _detectionRange = 25f;
 
         [Header("References")]
         [SerializeField] private Transform _turretHead;
         [SerializeField] private Transform _firePoint;
-        [SerializeField] private ParticleSystem _fireEffect;    
-        [SerializeField] private ParticleSystem _hitEffectPrefab; 
+
         private Enemy _currentTarget;
-        private float _fireTimer;
+        private float _fireTimer = float.MaxValue;
         private float _findTimer;
         private bool _isPlaying;
 
@@ -29,12 +28,10 @@ namespace EventBus
         {
             EventBus.SubscribeToEvent<GameStateChangedEvent>(OnGameStateChanged);
         }
-
         private void OnDisable()
         {
             EventBus.UnsubscribeFromEvent<GameStateChangedEvent>(OnGameStateChanged);
         }
-
         private void OnGameStateChanged(GameStateChangedEvent e)
         {
             _isPlaying = e.Data == GameState.Playing;
@@ -43,7 +40,13 @@ namespace EventBus
             {
                 _currentTarget = null;
                 _state = TurretState.Searching;
+                _fireTimer = float.MaxValue;
+                _findTimer = float.MaxValue;
+                return;
             }
+
+            _fireTimer = _fireRate;
+            _findTimer = _fireRate;
         }
 
         private void Update()
@@ -56,27 +59,37 @@ namespace EventBus
             switch (_state)
             {
                 case TurretState.Searching:
-                    if (_findTimer <= 0f)
-                    {
-                        _findTimer = _fireRate; 
-                        FindTarget();
-                    }
-
-                    if (_currentTarget != null)
-                        _state = TurretState.Shooting;
+                    UpdateSearching();
                     break;
 
                 case TurretState.Shooting:
-                    if (!IsTargetValid())
-                    {
-                        DropTarget();
-                        break;
-                    }
-
-                    RotateToTarget();
-                    TryFire();
+                    UpdateShooting();
                     break;
             }
+        }
+
+        private void UpdateSearching()
+        {
+            if (_findTimer <= 0f)
+            {
+                _findTimer = _fireRate;
+                FindTarget();
+            }
+
+            if (_currentTarget != null)
+                _state = TurretState.Shooting;
+        }
+
+        private void UpdateShooting()
+        {
+            if (!IsTargetValid())
+            {
+                DropTarget();
+                return;
+            }
+
+            RotateToTarget();
+            TryFire();
         }
 
         private void FindTarget()
@@ -88,7 +101,7 @@ namespace EventBus
 
             foreach (var hit in hits)
             {
-                if (!hit.TryGetComponent<Enemy>(out Enemy enemy)) continue;
+                if (!hit.TryGetComponent(out Enemy enemy)) continue;
                 if (!enemy.gameObject.activeInHierarchy) continue;
 
                 float angle = GetAngleToTarget(enemy.transform.position);
@@ -108,10 +121,7 @@ namespace EventBus
             if (!_currentTarget.gameObject.activeInHierarchy) return false;
 
             float angle = GetAngleToTarget(_currentTarget.transform.position);
-            if (angle > _loseAngle)
-                return false;
-
-            return true;
+            return angle <= _loseAngle;
         }
 
         private void DropTarget()
@@ -155,25 +165,32 @@ namespace EventBus
             if (_currentTarget == null) return;
 
             float aimAngle = GetAngleFromHead(_currentTarget.transform.position);
+            if (aimAngle > 10f) return;
 
-            if (aimAngle > 10f) return; 
+            if (_fireTimer > 0f) return;
 
-            if (_fireTimer <= 0f)
+            _fireTimer = _fireRate;
+
+            if (ParticlePool.Instance != null)
             {
-                _fireTimer = _fireRate;
+                var fire = ParticlePool.Instance.GetFire();
+                fire.transform.SetParent(_turretHead);
+                fire.transform.position = _firePoint.position;
+                fire.transform.localRotation = Quaternion.Euler(0f, -90f, 0f);
+                fire.Play();
+                ParticlePool.Instance.ReturnDelayed(fire, true);
 
-                if (_fireEffect != null)
-                    _fireEffect.Play();
-
-                _currentTarget.TakeDamage(_bulletDamage);
-
-                if (_hitEffectPrefab != null)
-                {
-                    ParticleSystem hit = Instantiate(_hitEffectPrefab, _currentTarget.transform.position, Quaternion.identity);
-                    hit.Play();
-                    Destroy(hit.gameObject, hit.main.duration + 0.1f);
-                }
+                var hit = ParticlePool.Instance.GetHit();
+                hit.transform.SetParent(null);
+                hit.transform.position = _currentTarget.transform.position + Vector3.up * 0.5f;
+                hit.transform.rotation = Quaternion.LookRotation(
+                    (_firePoint.position - _currentTarget.transform.position).normalized
+                );
+                hit.Play();
+                ParticlePool.Instance.ReturnDelayed(hit, false);
             }
+
+            _currentTarget.TakeDamage(_bulletDamage);
         }
 
         private float GetAngleToTarget(Vector3 targetPos)
